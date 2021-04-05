@@ -1,2 +1,2 @@
 # mg21
-my network propagation project at molgen
+Mmy network propagation project at MPMolgen
