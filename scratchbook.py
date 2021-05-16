@@ -4,7 +4,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import networkx as nx
 
-pd.read_csv(
 
 T = np.identity(4)
 T[0][3] = 1
@@ -90,8 +89,7 @@ T
 
 T.sum(axis=1)
 
-#dasf
+# dasf
 x = 1
 
 df = pd.read_csv()
-

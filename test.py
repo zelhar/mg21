@@ -1,6 +1,9 @@
 import math
 import pandas as pd
 import matplotlib.pyplot as plt
+import toolz
+
+# toolz.curried.comp()
 
 x = math.acos(50)
 
