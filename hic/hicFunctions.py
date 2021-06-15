@@ -92,7 +92,7 @@ def joinMatrices(hicfile, ls , res, norm="KR", unit="BP"):
         M = vstack([M,temp])
     return M
     
-def cleanMatrix(x, v):
+#def cleanMatrix(x, v):
 
 
 
