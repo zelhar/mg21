@@ -5,11 +5,7 @@ import matplotlib.pyplot as plt
 import toolz
 from toolz.curried import reduce
 from toolz.curried import concatv, concat
-
-
 from scipy.linalg import block_diag, tri,  tril, triu
-
-
 from matplotlib import cm
 
 def blockMatrix(blocks):

@@ -4,10 +4,93 @@ import numpy as np
 import pandas as pd
 import os.path as op
 import pygraphviz as pgv
-
 import toolz
+import toyplot as tp
 
-plt.ion()
+def getLEnd(i,A):
+    n = len(A)
+    x = str(abs(A[i % n]))
+    if A[i % n]<0:
+        #return "a"+str(A[i % n])
+        return "a"+x
+    else:
+        #return "b"+str(A[i % n])
+        return "b"+x
+def getREnd(i,A):
+    n = len(A)
+    x = str(abs(A[i % n]))
+    if A[i % n]<0:
+        return "b"+x
+        #return "b"+str(A[i % n])
+    else:
+        #return "a"+str(A[i % n])
+        return "a"+x
+
+
+def createBPG(p,r, plot=True):
+    """ parameters p,r: lists of integers which represents a reversal
+    cyclic permutation. It will be used to create a breakpoint graph
+    against the reference.
+    The reference has blue edges. P has green edges. The synteny
+    blocks are represented as black edges.
+    optional param plot: if True the graph will be plotted.
+    """
+    p = list(p)
+    r = list(r)
+    ns = sorted(np.abs(p+r))
+    ns = list(np.unique(ns))
+    a_nodes = ["a"+str(abs(i)) for i in ns]
+    b_nodes = ["b"+str(abs(i)) for i in ns]
+    my_nodes = list(toolz.interleave([a_nodes, b_nodes]))
+    G = nx.MultiGraph()
+    G.add_nodes_from(my_nodes)
+    blackedges = list(zip(a_nodes, b_nodes))
+    #blocknames = ["s"+str(i) for i in range(len(blackedges))]
+    blocknames = ["s"+str(i) for i in ns]
+    blockdict = dict(zip(blackedges, blocknames))
+    #blueedges = [("b"+str(r[i % len(r)]), "a"+str(r[(i+1) % len(r)])) for i in range(len(r))]
+    blueedges = [(getLEnd(i,r), getREnd(i+1,r)) for i in range(len(r))]
+    greenedges = [(getLEnd(i,p), getREnd(i+1,p)) for i in range(len(p))]
+    greenOnlyedges = [(u,v) for u,v in greenedges if ((u,v) not in blueedges) and ((v,u) not in blueedges)]
+    #greenedges = [("b"+str(p[i % len(p)]), "a"+str(p[(i+1) % len(p)])) for i in range(len(p))]
+    #G.add_edges_from(zip(a_nodes, b_nodes), color="black", weight=10)
+    #G.add_edges_from(zip(b_nodes, a_nodes[1:]+a_nodes[0:1]), color="blue", weight=1)
+    pos = nx.circular_layout(G)
+    G.add_edges_from(blackedges, color="black", weight=10)
+    G.add_edges_from(blueedges, color="blue", weight=1)
+    G.add_edges_from(greenedges, color="green", weight=2)
+    edgeColors = [d['color'] for (u,v,d) in G.edges(data=True) ]
+    nodeColors = len(ns)*["tan", "teal"]
+    #nx.draw_spring(G, node_color=nodeColors, edge_color=edgeColors, edge_labels=blockdict)
+    nx.draw_networkx_nodes(G,pos, node_shape="s", label= nx.draw_networkx_labels(G,
+        pos, font_size=8), node_color=nodeColors, node_size=50,)
+    nx.draw_networkx_edges(G, pos,
+            edgelist=blackedges,
+            edge_color="black",
+            label=nx.draw_networkx_edge_labels(G,pos,edge_labels=blockdict), )
+    nx.draw_networkx_edges(G, pos,
+            edgelist=blueedges,
+            edge_color="blue",
+            label=nx.draw_networkx_edge_labels(G,pos,edge_labels=blockdict), )
+    nx.draw_networkx_edges(G, pos,
+            edgelist=greenOnlyedges,
+            #edgelist=greenedges,
+            edge_color="green",
+            label=nx.draw_networkx_edge_labels(G,pos,edge_labels=blockdict), )
+    return G
+
+plt.cla()
+G=createBPG([1,-3,-2], [1,2,3,4])
+
+createBPG([1,2,3,2,4], [1,2,3,4])
+
+createBPG([1,-2,3,2,4], [1,-2,3,4])
+
+
+G = nx.dodecahedral_graph()
+edge_labels = nx.draw_networkx_edge_labels(G, pos=nx.spring_layout(G))
+
+#plt.ion()
 
 G = nx.MultiDiGraph()
 G.add_nodes_from("AaBbCcDdEeFfGgHhIiJj", color="yellow")
@@ -149,4 +232,7 @@ A.draw('foo.png')
 
 
 
+## toyplot tests
+G = tp.graph()
+G.add_edges_from?
 
