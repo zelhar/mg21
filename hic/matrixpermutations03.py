@@ -56,6 +56,12 @@ def inversionPermutation(i,j,n):
     P = concatv(l,a,r)
     return list(P)
 
+def rangeSwapPermutation(i,j,k,l,n):
+    """
+    swaps the index range [i,j) with [k,l)
+    0<=i<j<k<l<=n
+    """
+    i,j,k,l,n = sorted((i,j,k,l,n))
 
 
     
