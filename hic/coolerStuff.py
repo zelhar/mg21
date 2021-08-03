@@ -10,6 +10,9 @@ from toolz.curried import interleave, reduce, concat, concatv
 from toolz.curried import unique
 # https://github.com/open2c/cooler-binder/blob/master/cooler_api.ipynb
 
+from numpy import flip
+from numpy import log
+from scipy.signal import convolve2d
 #plt.ion()
 
 filepath = "./hicdata/191-98_hg19_no_hap_EBV_MAPQ30_merged.mcool"
@@ -109,6 +112,25 @@ fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111)
 im = ax.matshow(np.log10(arr2), cmap='YlOrRd')
 fig.colorbar(im)
+
+arr3 = 20*arr2 + 1.1
+arr4 = np.log10(arr3)
+
+w = np.zeros((5,5))
+w[1] = [0,0,-1,0,0]
+w[2] = [0,-1,4,-1,0]
+w[3] = [0,0,-1,0,0]
+
+w[1:4,1:4]=-1
+w[2,2] = 5
+
+z = convolve2d(arr4, -w, mode='same')
+
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(111)
+im = ax.matshow(z, cmap='YlOrRd')
+fig.colorbar(im)
+
 
 x = np.arange(12000)
 plt.plot(x,x)

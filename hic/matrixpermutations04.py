@@ -6,6 +6,10 @@ from toolz.curried import reduce
 from toolz.curried import concatv, concat
 from scipy.linalg import block_diag, tri,  tril, triu
 from matplotlib import cm
+from numpy import flip
+from numpy import log
+from scipy.signal import convolve2d
+
 
 def blockMatrix(blocks):
     """creates a bloack 0-1 matrix.
@@ -119,7 +123,7 @@ def test00():
     S = shuffleCopyMatrix(range(4), [1,1,3,3],4)
     print("\n",S)
 
-test00()
+#test00()
 
 
 def scoreMatrix(n, logscore=False):
@@ -151,7 +155,7 @@ def test01():
     plt.matshow(S)
     print("\n",np.log(S))
 
-test01()
+#test01()
 
 def score(A, S=None):
     """returns the weighted sum (by the score matrix S) of
@@ -208,7 +212,7 @@ def test02():
     print("\n", constrainMatrix([0,1],x))
     print("\n", resetIndices([1,2],x,[0]))
     print("\n", constrainMatrix([0,1],x,[2,3]))
-test02()
+#test02()
 
 def interactionScore(I,J,T,logscore=False):
     """
@@ -250,7 +254,7 @@ def test03():
     print("\n",alternativeScore([4,5,6],[1,0],x))
     print("\n",alternativeScore([6,5,4],[0,1],x))
     print("\n",alternativeScore([6,5,4],[1,0],x))
-test03()
+#test03()
 
 def scorePair(iss, jss, refmat, scoremat):
     A = np.zeros_like(refmat)
@@ -319,12 +323,123 @@ def articulate(l):
         ls.append(xs)
     return ls
 
+def plotMat(x, y):
+    n = len(x)
+    labels = list(map(str,range(n)))
+    figure = plt.figure()
+    axes = figure.add_subplot(121)
+    axes2 = figure.add_subplot(122)
+    caxes = axes.matshow(x, interpolation='nearest')
+    caxes2 = axes2.matshow(y, interpolation='nearest')
+    #figure.colorbar(caxes)
+    axes.set_xticks(range(n), minor=True)
+    axes.set_yticks(range(n), minor=True)
+    axes2.set_xticks(range(n), minor=True)
+    axes2.set_yticks(range(n), minor=True)
+    #axes.set_xticklabels(labels, minor=False)
+    #axes.set_yticklabels(labels, minor=False)
+    #axes = figure.add_subplot(111)
 
 # example:
+
 articulate([5, 7, 3])
 
+articulate([15,17,15])
 
-plt.ion()
+#s = scoreMatrix(n=len(x), logscore=False)
+x = blockMatrix([15,17,15])
+# assign non-0 value to the 0s
+y = x + (1-x)*1e-6
+s = scoreMatrix(n=len(x), logscore=False)
+y = y*1e7
+
+# best plot:
+plt.matshow(np.log(s*y))
+
+plotMat(np.log(s*y),s*y)
+
+
+js = rangeSwapPermutation(5, 11, 33, 41, 47)
+P =permutationMatrix(js)
+
+plt.matshow( P @ (y*s) @ P.T)
+plt.matshow(P @ np.log(y*s) @ P.T)
+plotMat(P @ x @ P.T,x)
+
+plotMat(np.log(s*y), P @ np.log(s*y) @ P.T)
+
+plotMat(P @ np.log(y) @ P.T, (P @ np.log(s*y) @ P.T) / log(s))
+
+plotMat((s*y), P @ (s*y) @ P.T / s)
+
+
+x = blockMatrix([10,10])
+y = x + (1-x)*1e-6
+s = scoreMatrix(n=len(x), logscore=False)
+plotMat(np.log(s*y),y)
+
+js = translocationPermutation(2,5,13,20)
+P =permutationMatrix(js)
+
+plotMat(P @ x @ P.T,x)
+plotMat(np.log(s*y), P @ np.log(s*y) @ P.T)
+plotMat((s*y), P @ (s*y) @ P.T)
+
+
+x = blockMatrix([10,10,10,10,10,10,10])
+y = x + (1-x)*1e-6
+s = scoreMatrix(n=len(x), logscore=False)
+plotMat(np.log(s*y),y)
+
+ss = list(range(len(x)))
+#js = translocationPermutation(10,13,13,20)
+js = ss[0:10] + list(reversed(ss[50:54])) + ss[10:50] + ss[60:70] + ss[54:60]
+P =permutationMatrix(js)
+
+plotMat(P @ x @ P.T,x)
+
+plotMat(np.log(s*y), P @ np.log(s*y) @ P.T)
+
+plotMat((s*y), P @ (s*y) @ P.T)
+
+w = np.zeros((5,5))
+w[1:4,1:4]=-50
+w[2,2] = 1500
+
+z = convolve2d(P @ y*s @ P.T,w, mode='same')
+plotMat(P @ (s*y)@ P.T, z)
+
+z = convolve2d(P @ log(y*s) @ P.T,w, mode='same')
+plotMat(P @ log(s*y)@ P.T, z)
+
+# inversion
+x = blockMatrix([10, 10])
+n = len(x)
+y = x + (1-x)*1e-6
+s = scoreMatrix(len(x))
+js = inversionPermutation(3,7,n)
+P = permutationMatrix(js)
+
+plotMat(s*y, log(y*s))
+
+plotMat(s*y, P @ (y*s) @ P.T)
+
+plotMat(x, P @ (x) @ P.T)
+
+# lets try a convolution enhancment
+w = np.zeros((7,7))
+w[0] = [0,0,1,2,-1,-1,-1]
+w[1] = [0,1,1,2,-1,-1,-1]
+w[2] = [1,1,1,2,-1,-1,-1]
+w[3] = [2,2,2,5,2,2,2]
+w[4] = [-1,-1,-1,2,1,1,1]
+w[5] = [-1,-1,-1,2,1,1,0]
+w[6] = [-1,-1,-1,2,1,0,0]
+#w = flip(w) # no need b/c flip(w)==w
+w
+
+z = convolve2d(P @ y*s @ P.T,w, mode='same')
+plotMat(z, P @ y*s @ P.T)
 
 
 blocks = [4, 4, 4, 4, 4]
