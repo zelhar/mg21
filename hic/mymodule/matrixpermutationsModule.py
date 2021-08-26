@@ -3,8 +3,12 @@ import numpy as np
 from PIL import Image
 import matplotlib.pyplot as plt
 import toolz
-from toolz.curried import reduce
-from toolz.curried import concatv, concat
+from toolz.curried import interleave, reduce, concat, concatv
+from toolz.curried import unique
+from toolz.curried import compose, compose_left, comp, complement
+from toolz.curried import pipe, thread_first, thread_last
+from toolz.curried import first, second, nth
+from toolz.curried import partial
 from scipy.linalg import block_diag, tri, tril, triu
 from matplotlib import cm
 from numpy import flip
@@ -39,20 +43,44 @@ def translocationPermutation(i, j, k, n):
     Swap [i,..,j) with [j,....k)
     Returns a permutation on [0....n], which represents
     the translocation permutation.
-    It should be i<j<k<n, otherwise they will be sorted to be in that order.
+    It should be i<j<k<n or k<i<j<n, otherwise they will be sorted to be in that order.
     """
-    i, j, k, n = sorted((i, j, k, n))  # should be 0 <= i<j<k<=n
-    l = range(0, i)
-    a = range(i, j)
-    b = range(j, k)
-    r = range(k, n)
-    P = concatv(l, b, a, r)
-    return list(P)
-
+    #i, j, k, n = sorted((i, j, k, n))  # should be 0 <= i<j<k<=n
+    if 0 <= i < j < k < n:
+        l = range(0, i)
+        a = range(i, j)
+        b = range(j, k)
+        r = range(k, n)
+        P = concatv(l, b, a, r)
+        return list(P)
+    elif 0 <= k < i < j < n:
+        l = range(0, k)
+        r = range(j, n)
+        a = range(i, j)
+        b =range(k,i)
+        P = concatv(l, a, b, r)
+        return list(P)
+    else:
+        print("error, check your range")
+        return None
 
 def inversionPermutation(i, j, n):
     """
     Inverts the range [i,j) within [1,n).
+    Parmas should be 0<=i<j<=n.
+    deprecated. use: reversalPermutation
+    """
+    i, j, n = sorted((i, j, n))  # should be 0 <= i<j<k<=n
+    l = range(0, i)
+    a = reversed(range(i, j))
+    r = range(j, n)
+    P = concatv(l, a, r)
+    return list(P)
+
+
+def reversalPermutation(i, j, n):
+    """
+    Reverses the range [i,j) within [1,n).
     Parmas should be 0<=i<j<=n.
     """
     i, j, n = sorted((i, j, n))  # should be 0 <= i<j<k<=n
@@ -87,6 +115,7 @@ def permutationMatrix(ls):
     To permute the columns of a matrix A use:
     Q = np.transpose(P),
      then: np.dot(A,Q).
+    To index change A: do P @ A @ P.T
     """
     n = len(ls)
     P = np.zeros((n, n))
@@ -115,6 +144,26 @@ def shuffleCopyMatrix(lins, louts, msize):
         P[lins[i]] = I[louts[i]]
     return P
 
+def deletionMatrix(l, n):
+    """
+    param l: list of indices
+    param n: matrix size, must be max(l)<n
+    returns an n×n 'identity' matrix P but for indices i in l,
+    P[i,i] = 0, representing a deletion.
+    """
+    P = np.identity(n)
+    P[l,:] = 0
+    return P
+
+def leftGradientMatrix(A):
+    """
+    Returns a matrix B[i,j] = A[i,j] - A[i,j-1]
+    for j>0. For j==0 B[i,j]=A[i,j]
+    """
+    B = np.zeros_like(A)
+    B[:0] = A[:,0]
+    B[:,1:] = A[:,1:] - A[:,:-1]
+    return B
 
 def scoreMatrix(n, logscore=False):
     """The score function of the matrix. The assumption is that the true
@@ -288,7 +337,8 @@ def articulate(l):
 def plotMat(x, y):
     n = len(x)
     labels = list(map(str, range(n)))
-    figure = plt.figure()
+    #figure = plt.figure()
+    figure = plt.figure(figsize=(10, 10))
     axes = figure.add_subplot(121)
     axes2 = figure.add_subplot(122)
     caxes = axes.matshow(x, interpolation="nearest")

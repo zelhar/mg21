@@ -148,10 +148,46 @@ convolve2d(temp, -myconv, mode='valid')
 
 
 
+x = blockMatrix([200,150,150,200])
+n = len(x)
+s = scoreMatrix(n, logscore=False)
 
+plotMat(x,s)
 
+plotMat(np.log(x+1) ,np.log(s*(x*100 + 1e-5)))
 
+plotHicMat(1e-2*s*(100*x+1e-9), transform=np.log)
 
+l = translocationPermutation(219, 270, 540, n)
+l = translocationPermutation(400, 450, 100, n)
+P = permutationMatrix(l)
+z = 1e-2*s*(100*x+1e-9)
+z = np.log(z)
+y = P @ z @ P.T
+
+plotMat(z,y)
+
+plotHicMat(y, transform= lambda x: x)
+plotHicMat(z, transform= lambda x: x)
+
+l = translocationPermutation(229, 270, 540, n)
+P = permutationMatrix(l)
+z = 1e-2*s*(100*x+1e-9)
+z = np.log(z)
+y = P @ z @ P.T
+plotHicMat(y, transform= lambda x: x)
+
+l2 = translocationPermutation(520, 530, 50, n)
+Q = permutationMatrix(l2)
+
+P = permutationMatrix(l)
+
+z = 1e-2*s*(100*x+1e-9)
+z = np.log(z)
+y = P @ z @ P.T
+plotMat(z,y)
+
+plotMat(z,Q @ y @ Q.T)
 
 ### Testing hi-c matrix
 
@@ -178,7 +214,12 @@ bedDF = pd.read_csv(
     ],
     sep="\t",
 )
+#bedDF
+bedDF['chr'] = bedDF['chr'].astype('str')
 bedDF
+
+
+
 
 # loading cooler matrix with hy5's API
 h5 = h5py.File(filepath, 'r')
@@ -191,6 +232,10 @@ h5.close()
 # loading cooler matrix with cooler's API
 c = cooler.Cooler(filepath+"::resolutions/500000")
 #c = cooler.Cooler(filepath+"::resolutions/250000")
+offsets = getOffsets(c.chromnames, c)
+
+bedDF['offset'] = addOffsets(bedDF, offsets)
+
 binsize = c.info['bin-size']
 binsize
 
@@ -223,15 +268,10 @@ c.pixels()[:10]
 arr = c.matrix(balance='KR', sparse=False)[:,:]
 arr = np.nan_to_num(arr)
 
-c = cooler.Cooler(reffilepath+"::resolutions/500000")
-refarr = c.matrix(balance='KR', sparse=False)[:,:]
-refarr = np.nan_to_num(refarr)
+c2 = cooler.Cooler(reffilepath+"::resolutions/500000")
 
-def plotHicMat(arr, transform=np.log10):
-    fig = plt.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111)
-    im = ax.matshow(transform(arr), cmap='YlOrRd')
-    fig.colorbar(im)
+refarr = c2.matrix(balance='KR', sparse=False)[:,:]
+refarr = np.nan_to_num(refarr)
 
 plotHicMat(arr+1)
 
@@ -247,6 +287,133 @@ plotHicMat((arr+1) / (0.3*refarr+1))
 
 plotHicMat((arr+1) / (0.1*refarr+1))
 
+plotHicMat((arr+1) / (0.7*refarr+0.7))
+
+plotHicMat(np.exp(leftGradientMatrix(np.log(arr))))
+
+# convolutions
+
+sobel = np.array([[1,2,1],[0,0,0],[-1,-2,-1]])
+
+derk = np.zeros((5,5))
+derk[0] = [2,2,4,2,2]
+derk[1] = [1,1,2,1,1]
+derk[3] = - derk[1]
+derk[4] = - derk[0]
+derk
+
+mymatconv = convolve2d(arr, sobel.T, mode='valid')
+plotHicMat(mymatconv+1)
+
+mymatconv = convolve2d(arr, derk, mode='valid')
+plotHicMat(mymatconv+1)
+
+## the interval, blocks and articualtion
+l = getIntervals(bedDF, c)
+l
+blocks = [l[i+1] - l[i] for i in range(0,len(l)-1)]
+blocks
+
+foo = arr.copy()
+foosegs = articulate(blocks)
+
+scorePair3(foosegs[0], foosegs[1], foo)
+
+scorePair3(foosegs[0], foosegs[2], foo)
+scorePair3(foosegs[0], foosegs[3], foo)
+scorePair3(foosegs[6], foosegs[13], foo)
+
+B = flip1(0, foo, foosegs)
+plotHicMat(B+1)
+
+barsegs, bar = swap2(0, 10, foo, foosegs)
+
+plotHicMat(bar+1)
+#while len(foosegs) > 1:
+#    x = np.random.randint(1, len(foosegs))
+#    foosegs, foo = swap2(1, x, foo, foosegs)
+#    foosegs, foo = improve(foo, foosegs)
+#
+#plt.matshow(foo)
+#plt.matshow(bar)
+
+def findNeighbor(A, arts):
+    """
+    Finds the nearest segment to segment arts[0]
+    returns the index of the neighbor, the score, and the
+    orientation (encoded) which yields the best score.
+    """
+    best = 0
+    argbest = 0
+    orientation = 0
+    for i in range(1, len(arts)):
+        sl = scorePair3(arts[0], arts[i], A)
+        slrv = scorePair3(arts[0], arts[i] , A, lreverse=True)
+        sr = scorePair3(arts[i], arts[0], A)
+        srrv = scorePair3(arts[i], arts[0] , A, lreverse=True)
+        t = np.max([sl, slrv, sr, srrv])
+        if t > best:
+            best = t
+            argbest = i
+            orientation = np.argmax([sl, slrv, sr, srrv])
+    return argbest, best, orientation
+
+def joinFirst(A, arts):
+    """
+    find the nearest neighbor to the first segment in terms of 
+    scor. Then combine them into one segment in the correct orientation.
+    return the new matrix and its segmentation.
+    """
+    argbest, best, orientation = findNeighbor(A, arts)
+    barts, B = swap2(1, argbest, A, arts)
+    mysegs = [len(barts[i]) for i in range(1, len(arts))]
+    mysegs[0] += len(barts[0])
+    mysegs = articulate(mysegs)
+    if orientation == 1:
+        flip1(0, B, barts)
+    elif orientation == 2:
+        flip1(0, B, barts)
+        flip1(1, B, barts)
+    elif orientation == 3:
+        flip1(1, B, barts)
+    return mysegs, B 
+
+def quickScore(A, arts, x, y, l):
+    """
+    scores of segments x and y based on the first or last
+    l indiced only.
+    """
+    xs = arts[x][-l:]
+    ys = arts[y][:l]
+    return np.sum(A[xs][:,ys])
+
+
+
+
+foo = arr.copy()
+foo = (arr+1) / (0.3*refarr+1)
+foosegs = articulate(blocks)
+
+j = 6
+for i in range(j+1, len(blocks)):
+    print(quickScore(foo, articulate(blocks), j, i, 6))
+
+findNeighbor(foo, foosegs)
+
+len(foosegs)
+
+while len(foosegs) > 1:
+    foosegs, foo = joinFirst(foo, foosegs)
+    pipe(foosegs, len, print)
+
+plotHicMat(foo)
+
+plotHicMat((arr+1) / (0.3*refarr+1))
+
+plotHicMat(arr)
+
+## trying stuff on partial arrays
+
 n = len(arr)
 s = scoreMatrix(n, logscore=True)
 
@@ -254,9 +421,112 @@ plotMat(s, np.log(arr+1) - s)
 
 y = [arr[n-i,n-i] for i in range(1,n)]
 
+myrange = np.array(list(concatv(
+    range(c.offset('1') , c.offset('2')),   # chr1
+    range(c.offset('3'), c.offset('5')),    # chr3,4
+    range(c.offset('11'), c.offset('12')),  # chr 11
+    range(c.offset('12'), c.offset('13')),  # chr 13
+    )))
+
+a = arr[myrange[:, np.newaxis], myrange ]
+b = refarr[myrange[:, np.newaxis], myrange ]
+
+plotHicMat(convolve2d(a, derk.T, mode='valid')+1)
+
+plotHicMat(b+1)
+
+plotHicMat(a+1)
+plt.xticks(np.array([200, 700, 1100, 1450, 1700]), ['ch1', 'ch3', 'chr4', 'chr11', 'chr13'])
+
+#locs, labels = plt.xticks()
+plotHicMat((a+1) / (0.2*b + 1) )
+plt.xticks(np.array([200, 700, 1100, 1450, 1700]), ['ch1', 'ch3', 'chr4', 'chr11', 'chr13'])
+
+offset = {}
+offset['1'] = 0
+#offset['3'] = c.offset('2')
+offset['3'] = offset['1'] + c.chromsizes['1'] // binsize + 1
+offset['4'] = offset['3'] + c.chromsizes['3'] // binsize + 1
+offset['11'] = offset['4'] + c.chromsizes['4'] // binsize + 1
+offset['13'] = offset['11'] + c.chromsizes['11'] // binsize + 1
+
+offset = getOffsets(['1','3','4','11','13'], c)
+offset
+
+x = addOffsets(bedDF, offset)
+bedDF['offset'] = x
+bedDF
+
+
+
+
+
+### more partial arrays
 
 a = c.matrix(balance='KR').fetch('2','5')
 
-b = c.matrix(balance='KR').fetch('2','5')
+b = c2.matrix(balance='KR').fetch('2','5')
+
+myrange = np.array(list(concatv(
+    range(c.offset('2') , c.offset('5')), range(c.offset('11'), c.offset('12'))
+    )))
+
+a = arr[myrange[:, np.newaxis], myrange ]
+b = refarr[myrange[:, np.newaxis], myrange ]
 
 plotHicMat(a)
+
+plotHicMat((a+1) / (0.2*b + 1) )
+
+plotHicMat((a+1) / (0.5*b + 1) )
+
+plotHicMat((a+1) / (1.5*b + 1) )
+
+plotHicMat((a+1) / (10.5*b + 1) )
+
+offset2 = 0
+# start of chr3 in the sub-matrix:
+offset3 = c.offset('3') - c.offset('2')
+# start of chr4 in the sub-matrix:
+offset4 = offset3 + c.offset('4') - c.offset('3')
+# start of chr11 is end of 4 in the sub-matrix:
+offset11 = offset4 + c.offset('5') - c.offset('4')
+
+n = len(a)
+y = np.arange(n)
+x = np.ones_like(y)
+
+plt.plot(offset3 * x, y, color='black')
+plt.plot(offset4 * x, y, color='black')
+plt.plot(offset11 * x, y, color='black')
+plt.plot(y,offset3 * x,  color='black')
+plt.plot(y,offset4 * x,  color='black')
+plt.plot(y,offset11 * x,  color='black')
+
+#locations = bedDF[bedDF.chr == 3]['end']
+#locations
+
+loc2 = bedDF[bedDF.chr == 2][['start', 'end']].to_numpy()
+loc11 = bedDF[bedDF.chr == 11][['start', 'end']].to_numpy()
+
+#plt.plot((offset3 + locations[2] // binsize) * x, y, color='red')
+#plt.plot((offset3 + locations[7] // binsize) * x, y, color='red')
+plt.plot((offset11 + loc11[0][0] // binsize) * x, y, color='red')
+plt.plot((offset11 + loc11[0][1] // binsize) * x, y, color='red')
+
+plt.plot((offset11 + loc11[11][0] // binsize) * x, y, color='purple')
+plt.plot((offset11 + loc11[11][1] // binsize) * x, y, color='brown')
+
+plt.plot((offset11 + loc11[12][0] // binsize) * x, y, color='purple')
+plt.plot((offset11 + loc11[12][1] // binsize) * x, y, color='brown')
+
+# big one
+plt.plot(y, (offset11 + loc11[12][0] // binsize) * x, color='purple')
+plt.plot(y, (offset11 + loc11[12][1] // binsize) * x, color='brown')
+
+plt.plot((offset11 + loc11[12][0] // binsize) * x, y, color='purple')
+plt.plot((offset11 + loc11[12][1] // binsize) * x, y, color='brown')
+
+
+plt.close()
+
