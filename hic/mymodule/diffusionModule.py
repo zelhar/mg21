@@ -65,6 +65,7 @@ def diffusionMatrix(T, alpha=0.2):
     Output K: the diffusion matrix, which is
     K = a [I - (1-a)T]^(-1)
     """
+    T = T / T.sum(axis = 0) # normailize
     n = T.shape[0]
     I = np.identity(n)
     K = I - (1 - alpha)*T

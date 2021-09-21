@@ -107,6 +107,14 @@ arr2 = c.matrix(balance='KR', sparse=False)[:,:]
 arr2 = np.nan_to_num(arr2)
 #np.allclose(arr, arr2, equal_nan=True)
 
+# slicing by chromosomes
+a2b5 = c.matrix(balance='KR').fetch('2', '5')
+
+A4 = c.matrix(balance='KR', sparse=True).fetch('2', '3')
+A4.toarray()
+
+
+plt.matshow(np.log(a2b5), cmap='YlOrRd')
 
 fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(111)
