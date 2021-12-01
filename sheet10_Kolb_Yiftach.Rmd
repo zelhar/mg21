@@ -1,0 +1,74 @@
+---
+title: "Statistical Methods: Assignment 10"
+author: "Yiftach Kolb (5195763)"
+output: pdf_document
+---
+
+## Exercise 1
+
+First lets contstruct the data set:
+groups 1 to 4 are: 'sp','p','sv','v'.
+
+```{r}
+library(nparcomp)
+library(tidyverse)
+
+sp <- c(3.56,3.41,3.2,3.75,3.58,3.88,3.49,3.18,3.9,3.35,3.12,3.9)
+sv <- c(4.00,3.84,3.98,3.9,3.88,3.73,4.41,4.19,4.5,4.2,4.05,3.67)
+p <-  c(2.81,2.89,3.75,3.3,3.84,3.58,3.89,3.29,3.45,3.6,3.4,3.3)
+v <- c(3.85,2.96,3.75,3.6,3.44,3.29,4.04,3.89,4.2,3.6,3.9,3.6)
+
+#group <- as.factor(rep(c(1:4), each=12))
+group <- as.factor(rep(c("sp","p","sv","v"), each=12))
+
+score <- c(sp, p, sv, v)
+
+mydata <- tibble(score, group)
+
+mymat <- rbind(c(0,0,1,-1),
+               c(1,0,-1,0),
+               c(0,1,0,-1))
+colnames(mymat) <- c("sp", "p", "sv", "v")
+rownames(mymat) <- c("v:sv", "sv:sp", "v:p")
+
+
+```
+
+Idealy we could use a custom contrast matrix which looks like this:
+
+```{r}
+mymat %>% print
+```
+
+But I couldn't figure out how to use it in the functions. So
+instead, I used the Tukey matrix, which basically compares all
+pairs, including ones we don't need.
+
+So first here is the result from 'nparcomp':
+
+```{r}
+nparcomp(score ~ group, data = mydata, asy.method = "mult.t",  plot.simci = TRUE, type="Tukey")
+```
+
+From the result we see that we can reject "V = SV" and assume that
+"SV" tends to be larger. We also reject "SV = SP" and SV tends to be
+larger than SP. 
+V = P cannot be rejected.
+
+To clarify, by V = P etc. I mean the null hypothesis is that their
+relative effects are 0.5 (npartest) or are equal to each other
+(mctp)
+
+now repeat the same procedure but with mctp.
+
+```{r}
+mctp(score ~ group, data = mydata, type = "Tukey", asy.method = "mult.t", plot.simci = TRUE)
+```
+
+The results are similar:
+SV = V: rejected
+SV = P: rejected
+V = P: not rejected.
+
+SV tends to be larger than SP and V, V, and P cannot be
+distinguished (p value is 0.55).
